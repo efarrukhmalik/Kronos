@@ -1,11 +1,34 @@
+"""Example script demonstrating batched predictions with :mod:`Kronos`.
+
+This example mirrors the typical workflow used when deploying the Kronos
+predictor in batch mode: load the model artifacts, instantiate a predictor,
+prepare sliding windows of historical data, and then generate forecasts for
+multiple windows in a single call.  The resulting predictions can optionally be
+visualised with :func:`plot_prediction`.
+"""
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import sys
+
 sys.path.append("../")
 from model import Kronos, KronosTokenizer, KronosPredictor
 
 
 def plot_prediction(kline_df, pred_df):
+    """Plot the ground truth and predicted close price and volume.
+
+    Parameters
+    ----------
+    kline_df: pandas.DataFrame
+        The original historical kline data containing at least ``close`` and
+        ``volume`` columns. The index is assumed to be aligned with the
+        ``timestamps`` in the dataset.
+    pred_df: pandas.DataFrame
+        A DataFrame returned by :meth:`KronosPredictor.predict_batch` for a
+        single item in the batch. The function expects columns named ``close``
+        and ``volume``.
+    """
     pred_df.index = kline_df.index[-pred_df.shape[0]:]
     sr_close = kline_df['close']
     sr_pred_close = pred_df['close']
@@ -46,6 +69,10 @@ model = Kronos.from_pretrained("/home/csc/huggingface/Kronos-base/")
 predictor = KronosPredictor(model, tokenizer, device="cuda:0", max_context=512)
 
 # 3. Prepare Data
+#    We create sliding windows of historical data (``dfs``) along with matching
+#    timestamp sequences (``xtsp`` and ``ytsp``) for each batch item.  Each
+#    window is shifted by ``lookback`` rows, resulting in non-overlapping
+#    sequences that can be processed together.
 df = pd.read_csv("./data/XSHG_5min_600977.csv")
 df['timestamps'] = pd.to_datetime(df['timestamps'])
 
